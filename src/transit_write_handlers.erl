@@ -55,79 +55,86 @@ special_number() ->
                      rep = F,
                      string_rep = F
                    }.
+-ifndef(maps_support).
+handler(Data) -> create_handler(Data).
+-endif.
 
-handler([]) ->
-  #write_handler{tag = fun array_tag/1, rep = fun array_rep/1, string_rep = fun array_string_rep/1};
-handler([{}]) ->
-  #write_handler{tag = fun map_tag/1, rep = fun map_rep/1, string_rep = fun map_string_rep/1};
-handler(Data) when is_boolean(Data) ->
-  #write_handler{tag = fun boolean_tag/1, rep = fun boolean_rep/1, string_rep = fun boolean_string_rep/1};
-handler(Data) when is_float(Data) ->
-  #write_handler{tag = fun float_tag/1, rep = fun float_rep/1, string_rep = fun float_string_rep/1};
-handler(Data) when is_integer(Data) ->
-  #write_handler{tag = fun integer_tag/1, rep = fun integer_rep/1, string_rep = fun integer_string_rep/1};
-handler(Data) when is_list(Data) ->
-      #write_handler{tag = fun array_tag/1, rep = fun array_rep/1, string_rep = fun array_string_rep/1};
-handler(Data) when is_binary(Data) ->
-  #write_handler{tag = fun binary_tag/1, rep = fun binary_rep/1, string_rep = fun binary_string_rep/1};
+-ifdef(maps_support).
 handler(Data) when is_map(Data) ->
   #write_handler{tag = fun map_tag/1, rep = fun map_rep/1, string_rep = fun map_string_rep/1};
-handler({kw, _}) ->
+handler(Data) -> create_handler(Data).
+-endif.
+
+create_handler([]) ->
+  #write_handler{tag = fun array_tag/1, rep = fun array_rep/1, string_rep = fun array_string_rep/1};
+create_handler([{}]) ->
+  #write_handler{tag = fun map_tag/1, rep = fun map_rep/1, string_rep = fun map_string_rep/1};
+create_handler(Data) when is_boolean(Data) ->
+  #write_handler{tag = fun boolean_tag/1, rep = fun boolean_rep/1, string_rep = fun boolean_string_rep/1};
+create_handler(Data) when is_float(Data) ->
+  #write_handler{tag = fun float_tag/1, rep = fun float_rep/1, string_rep = fun float_string_rep/1};
+create_handler(Data) when is_integer(Data) ->
+  #write_handler{tag = fun integer_tag/1, rep = fun integer_rep/1, string_rep = fun integer_string_rep/1};
+create_handler(Data) when is_list(Data) ->
+      #write_handler{tag = fun array_tag/1, rep = fun array_rep/1, string_rep = fun array_string_rep/1};
+create_handler(Data) when is_binary(Data) ->
+  #write_handler{tag = fun binary_tag/1, rep = fun binary_rep/1, string_rep = fun binary_string_rep/1};
+create_handler({kw, _}) ->
   #write_handler {
     tag = fun({kw, _}) -> ?KEYWORD end,
     rep = fun({kw, KW}) -> {kw, KW} end,
     string_rep = fun({kw, KW}) -> KW end
   };
-handler(undefined) ->
+create_handler(undefined) ->
   #write_handler{tag = fun undefined_tag/1, rep = fun undefined_rep/1, string_rep = fun undefined_string_rep/1};
-handler(nan) -> special_number();
-handler(infinity) -> special_number();
-handler(neg_infinity) -> special_number();
-handler({timepoint, _}) ->
+create_handler(nan) -> special_number();
+create_handler(infinity) -> special_number();
+create_handler(neg_infinity) -> special_number();
+create_handler({timepoint, _}) ->
   #write_handler {
     tag = fun ({timepoint, _}) -> ?DATE end,
     rep = fun ({timepoint, TP}) -> transit_utils:timestamp_to_ms(TP) end,
     string_rep = fun ({timepoint, TP}) -> integer_to_binary(transit_utils:timestamp_to_ms(TP)) end
   };
-handler({binary, _}) ->
+create_handler({binary, _}) ->
   #write_handler {
   	tag = fun ({binary, _}) -> ?BINARY end,
   	rep = fun ({binary, Bin}) -> base64:encode(Bin) end,
   	string_rep = fun ({binary, Bin}) -> base64:encode(Bin) end
   };
-handler({uuid, _}) ->
+create_handler({uuid, _}) ->
   #write_handler { tag = fun({uuid, _}) -> ?UUID end,
                    rep = fun({uuid, UUID}) -> UUID end,
                    string_rep = fun({uuid, UUID}) -> UUID end
                  };
-handler({sym, _}) ->
+create_handler({sym, _}) ->
   #write_handler { tag = fun({sym, _}) -> ?SYMBOL end,
                    rep = fun({sym, Symb}) when is_binary(Symb) -> Symb end,
                    string_rep = fun({sym, Symb}) when is_binary(Symb) -> Symb end
   };
-handler({uri, _}) ->
+create_handler({uri, _}) ->
   #write_handler { tag = fun({uri, _}) -> ?URI end,
                    rep = fun({uri, URI}) -> URI end,
                    string_rep = fun({uri, URI}) -> URI end
   };
-handler({list, _}) ->
+create_handler({list, _}) ->
   #write_handler { tag = fun({list, _}) -> ?LIST end,
                    rep = fun({list, L}) -> L end,
                    string_rep = fun(_) -> exit({error, lists_have_no_string_rep}) end
   };
-handler(#tagged_value{}) ->
+create_handler(#tagged_value{}) ->
   #write_handler {
   	tag = fun(#tagged_value { tag = Tag }) -> Tag end,
   	rep = fun(#tagged_value { rep = Rep}) -> Rep end,
   	string_rep = fun(#tagged_value { rep = Rep}) -> Rep end
   };
-handler(Atom) when is_atom(Atom) ->
+create_handler(Atom) when is_atom(Atom) ->
   #write_handler {
     tag = fun(_) -> ?KEYWORD end,
     rep = fun(A) -> A end,
     string_rep = fun(A) -> atom_to_binary(A, utf8) end
   };
-handler({Mega, Secs, Micros})
+create_handler({Mega, Secs, Micros})
   when is_integer(Mega),
        is_integer(Secs) andalso Secs >= 0 andalso Secs < 1000000,
        is_integer(Micros) andalso Micros >= 0 andalso Micros < 1000000 ->
@@ -136,7 +143,7 @@ handler({Mega, Secs, Micros})
     rep = fun (TP) -> transit_utils:timestamp_to_ms(TP) end,
     string_rep = fun (TP) -> integer_to_binary(transit_utils:timestamp_to_ms(TP)) end
   };
-handler(Data) ->
+create_handler(Data) ->
   case transit_utils:is_set(Data) of
     undefined ->
       undefined;
@@ -157,6 +164,19 @@ tag(Data) ->
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
+-ifndef(maps_support).
+handler_test_() ->
+  Tests = [{?INT, 1234},
+           {?KEYWORD, {kw, <<"hi">>}},
+           {?NULL, undefined}
+          ],
+  [fun() ->
+      IntH = handler(Int),
+      Tag = apply(IntH#write_handler.tag, [Int])
+  end || {Tag, Int} <- Tests].
+-endif.
+
+-ifdef(maps_support).
 handler_test_() ->
   Tests = [{?INT, 1234},
            {?MAP, #{}},
@@ -167,5 +187,6 @@ handler_test_() ->
       IntH = handler(Int),
       Tag = apply(IntH#write_handler.tag, [Int])
   end || {Tag, Int} <- Tests].
+-endif.
 
 -endif.

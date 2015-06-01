@@ -5,9 +5,17 @@
 -export([handler/1]).
 -record(point, {x,y}).
 
+-ifndef(maps_support).
+custom_handler_test() ->
+  P = #point{x=1.5, y=2.5},
+  ?assertEqual(<<"[\"~#point\",[1.5,2.5]]">>, transit_writer:write(P, [{format,json},{handler,?MODULE}])).
+-endif.
+
+-ifdef(maps_support).
 custom_handler_test() ->
   P = #point{x=1.5, y=2.5},
   ?assertEqual(<<"[\"~#point\",[1.5,2.5]]">>, transit_writer:write(P, #{ format => json, handler => ?MODULE })).
+-endif.
 
 %%% custom handler callback
 handler(#point{}) ->

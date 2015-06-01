@@ -52,13 +52,22 @@
 -callback handler(Obj) ->
   Handler when Obj::term(), Handler::transit_write_handlers:writer_handler().
 
+-ifndef(maps_support).
+% flatten_map(M) when is_map(M) ->
+%   maps:fold(fun(K, V, In) ->  [K, V| In] end, [], M);
+flatten_map([{}]) -> [];
+flatten_map([{K,V}|Tail]) -> [K,V|flatten_map(Tail)];
+flatten_map([]) -> [].
+-endif.
+
+-ifdef(maps_support).
 %%% flatten R17 map
 flatten_map(M) when is_map(M) ->
   maps:fold(fun(K, V, In) ->  [K, V| In] end, [], M);
 flatten_map([{}]) -> [];
 flatten_map([{K,V}|Tail]) -> [K,V|flatten_map(Tail)];
 flatten_map([]) -> [].
-
+-endif.
 quote_string(Str) ->
   EscapeSlash = re:replace(Str, "\\\\", "\\\\"),
   EscapeQuote = re:replace(EscapeSlash, "\\\"", "\\\""),
@@ -147,6 +156,21 @@ new_env({Format, CustomHandler}) ->
   Cache = transit_rolling_cache:empty(Format),
   Env#env{custom_handler=CustomHandler, cache=Cache}.
 
+-ifndef(maps_support).
+% stringable_keys(#{} = Rep) -> 
+%   lists:all(fun(X) -> byte_size(transit_write_handlers:tag(X)) =:= 1 end,
+%             maps:keys(Rep));
+stringable_keys([{}]) -> true;
+stringable_keys([]) -> true;
+stringable_keys([{K, _}|T]) ->
+  case byte_size(transit_write_handlers:tag(K)) =:= 1 of
+    true -> stringable_keys(T);
+    false -> false
+  end;
+stringable_keys(_) -> false.
+-endif.
+
+-ifdef(maps_support).
 stringable_keys(#{} = Rep) -> 
   lists:all(fun(X) -> byte_size(transit_write_handlers:tag(X)) =:= 1 end,
             maps:keys(Rep));
@@ -158,3 +182,4 @@ stringable_keys([{K, _}|T]) ->
     false -> false
   end;
 stringable_keys(_) -> false.
+-endif.
