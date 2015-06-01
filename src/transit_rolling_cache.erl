@@ -14,7 +14,7 @@
 
 -type decode_kind() :: key | value.
 
--record(cache, { kv :: dict:dict(), vk :: dict:dict() }).
+-record(cache, { kv :: dict(), vk :: dict() }).
 
 -opaque cache() :: #cache{} | nocache.
 

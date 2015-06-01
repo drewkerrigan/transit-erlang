@@ -8,8 +8,11 @@
 -export([emit_encoded/3, emit_array/2, emit_map/2]).
 -export([emit_cmap/2, handler/1]).
 
--spec emit_map(Rep, Env) ->
-  {Resp, Env} when Rep::term(), Resp::bitstring(), Env::transit_marshaler:env().
+-ifndef(maps_support).
+emit_map(M,S) -> real_emit_map(M,S).
+-endif.
+
+-ifdef(maps_support).
 emit_map(M, S1) when is_map(M) ->
   {Body, S2} = maps:fold(fun (K, V, {In, NS1}) ->
                         {MK, NS2} = transit_marshaler:marshal(?MODULE, K, transit_marshaler:force_context(key, NS1)),
@@ -23,11 +26,16 @@ emit_map(M, S1) when is_map(M) ->
     _ ->
       {Body, S2}
   end;
-emit_map([], Env) ->
+emit_map(M,S) -> real_emit_map(M,S).
+-endif.
+
+-spec real_emit_map(Rep, Env) ->
+  {Resp, Env} when Rep::term(), Resp::bitstring(), Env::transit_marshaler:env().
+real_emit_map([], Env) ->
   {[], Env};
-emit_map([{}], Env) ->
+real_emit_map([{}], Env) ->
   {[{}], Env};
-emit_map([{K,V}|Tail], Env) ->
+real_emit_map([{K,V}|Tail], Env) ->
   {MK, NS1} = transit_marshaler:marshal(?MODULE, K, transit_marshaler:force_context(key, Env)),
   {MV, NS2} = transit_marshaler:marshal(?MODULE, V, transit_marshaler:force_context(value, NS1)),
   {MTail, NS3} = emit_map(Tail, NS2),
@@ -106,6 +114,15 @@ marshals_tagged(Env) ->
             Res = jsx:encode(Raw)
    end || {Res, Rep} <- Tests].
 
+-ifndef(maps_support).
+marshals_extend(_Env) ->
+  Tests = [{<<"{}">>, [{}]},
+           {<<"[\"a\",2,\"~:a\"]">>, [<<"a">>, 2, {kw, <<"a">>}]},
+           {<<"{\"~#'\":\"~t1970-01-01T00:00:00.000Z\"}">>, {timepoint, {0,0,0}}}],
+  [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json_verbose, ?MODULE})) end || {Res, Rep} <- Tests].
+-endif.
+
+-ifdef(maps_support).
 marshals_extend(_Env) ->
   Tests = [{<<"{}">>, [{}]},
            {<<"{}">>, #{}},
@@ -114,4 +131,6 @@ marshals_extend(_Env) ->
            {<<"{\"~#'\":\"~t1970-01-01T00:00:00.000Z\"}">>, {timepoint, {0,0,0}}},
            {<<"{\"~d3.5\":4.1}">>, #{3.5 => 4.1}}],
   [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json_verbose, ?MODULE})) end || {Res, Rep} <- Tests].
+-endif.
+
 -endif.

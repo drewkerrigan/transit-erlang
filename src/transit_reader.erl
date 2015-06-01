@@ -33,19 +33,38 @@ unpack(Obj, json) -> {ok, jsx:decode(Obj)};
 unpack(Obj, json_verbose) -> {ok, jsx:decode(Obj)};
 unpack(_Obj, undefined) -> {error, unknown_format}.
 
+-ifndef(maps_support).
+format([{format,F}|_]) -> F;
+format([]) -> undefined;
+format(Config) when is_list(Config) ->
+    proplists:get_value(format, Config, undefined).
+-endif.
+
+-ifdef(maps_support).
 format(#{ format := F }) -> F;
 format(#{}) -> undefined;
 format(Config) when is_list(Config) ->
     proplists:get_value(format, Config, undefined).
+-endif.
 
-decode(Cache, Str, Kind, Config) when is_binary(Str) ->
+-ifndef(maps_support).
+decode(Cache, [{}], _Kind, _Config) -> {[], Cache};
+decode(Cache, Data, Kind, Config) -> real_decode(Cache, Data, Kind, Config).
+-endif.
+
+-ifdef(maps_support).
+decode(Cache, [{}], _Kind, _Config) -> {#{}, Cache};
+decode(Cache, Data, Kind, Config) -> real_decode(Cache, Data, Kind, Config).
+-endif.
+
+real_decode(Cache, Str, Kind, Config) when is_binary(Str) ->
   {OrigStr, Cache1} = transit_rolling_cache:decode(Cache, Str, Kind),
   {parse_string(OrigStr, Config), Cache1};
-decode(Cache, [?MAP_AS_ARR|Tail], Kind, Config) ->
+real_decode(Cache, [?MAP_AS_ARR|Tail], Kind, Config) ->
   {L, C} = decode_array_hash(Cache, Tail, Kind, Config),
   {transit_utils:map_rep(L), C};
 %% If the output is from a verbose write, it will be encoded as a hash
-decode(Cache, [{Key, Val}], Kind, Config) ->
+real_decode(Cache, [{Key, Val}], Kind, Config) ->
   case decode(Cache, Key, key, Config) of
     {{tag, Tag}, C1} ->
       {DVal, C2} = decode(C1, Val, Kind, Config),
@@ -54,10 +73,10 @@ decode(Cache, [{Key, Val}], Kind, Config) ->
       {DVal, C2} = decode(C1, Val, value, Config),
       {transit_utils:map_rep([{DKey, DVal}]), C2}
   end;
-decode(Cache, [{_, _}|_] = Obj, Kind, Config) ->
+real_decode(Cache, [{_, _}|_] = Obj, Kind, Config) ->
   {L, C} = decode_hash(Cache, Obj, Kind, Config),
   {transit_utils:map_rep(L), C};
-decode(Cache, [EscapedTag, Rep] = Name, Kind, Config) when is_binary(EscapedTag) ->
+real_decode(Cache, [EscapedTag, Rep] = Name, Kind, Config) when is_binary(EscapedTag) ->
   {OrigTag, C} = transit_rolling_cache:decode(Cache, EscapedTag, Kind),
   case OrigTag of
     <<"~#", Tag/binary>> ->
@@ -67,10 +86,9 @@ decode(Cache, [EscapedTag, Rep] = Name, Kind, Config) when is_binary(EscapedTag)
       %% Abort the above and decode as an array. Note the reference back to the original cache
       decode_array(Cache, Name, Kind, Config)
   end;
-decode(Cache, [{}], _Kind, _Config) -> {#{}, Cache};
-decode(Cache, Obj, Kind, Config) when is_list(Obj) -> decode_array(Cache, Obj, Kind, Config);
-decode(Cache, null, _Kind, _Config) -> {undefined, Cache};
-decode(Cache, Obj, _Kind, _Config) -> {Obj, Cache}.
+real_decode(Cache, Obj, Kind, Config) when is_list(Obj) -> decode_array(Cache, Obj, Kind, Config);
+real_decode(Cache, null, _Kind, _Config) -> {undefined, Cache};
+real_decode(Cache, Obj, _Kind, _Config) -> {Obj, Cache}.
 
 rem_fst(<<_, Data/binary>>) -> Data.
 
@@ -112,9 +130,17 @@ decode_hash(Cache, Name, _Kind, Config) ->
                       {{DKey, DVal}, C2}
                  end, Cache, Name).
 
+-ifndef(maps_support).
+handle(Ty, Rep, [{translate_fun,TR}|_]) ->
+    TR(handle(Ty, Rep));
+handle(Ty, Rep, _) -> handle(Ty, Rep).
+-endif.
+
+-ifdef(maps_support).
 handle(Ty, Rep, #{ translate_fun := TR }) ->
     TR(handle(Ty, Rep));
 handle(Ty, Rep, _) -> handle(Ty, Rep).
+-endif.
 
 handle(?CMAP, Rep) -> transit_utils:map_rep(list_to_proplist(Rep));
 handle(?NULL, _) -> undefined;
@@ -161,6 +187,23 @@ unmarshal_test_() ->
    [fun unmarshal_quoted/1,
     fun unmarshal_extend/1]}.
 
+-ifndef(maps_support).
+unmarshal_quoted(C) ->
+  Tests = [{1, <<"[\"~#'\", 1]">>},
+           {<<"foo">>, <<"[\"~#'\", \"foo\"]">>},
+           {undefined, <<"[\"~#'\", null]">>},
+           {true, <<"[\"~#'\", true]">>},
+           {false, <<"[\"~#'\", false]">>},
+           {{kw, <<"~">>}, <<"[\"~#'\",\"~:~\"]">>},
+           {{kw, <<"^">>}, <<"[\"~#'\",\"~:^\"]">>},
+           {<<"~hello">>, <<"[\"~#'\",\"~~hello\"]">>},
+           {transit_types:symbol(<<"hello">>), <<"[\"~#'\",\"~$hello\"]">>},
+           {transit_types:datetime({0,0,0}), <<"[\"~#'\",\"~m0\"]">>}
+          ],
+  [fun() -> {Val, _} = decode(C, jsx:decode(Str), value, []) end || {Val, Str} <- Tests].
+-endif.
+
+-ifdef(maps_support).
 unmarshal_quoted(C) ->
   Tests = [{1, <<"[\"~#'\", 1]">>},
            {<<"foo">>, <<"[\"~#'\", \"foo\"]">>},
@@ -175,7 +218,17 @@ unmarshal_quoted(C) ->
            %{transit_types:datetime({0,0,0}), <<"[\"~#'\",\"~t1970-01-01T00:00:01.000Z\"]">>},
           ],
   [fun() -> {Val, _} = decode(C, jsx:decode(Str), value, #{}) end || {Val, Str} <- Tests].
+-endif.
 
+-ifndef(maps_support).
+unmarshal_extend(C) ->
+  Tests = [{[[{kw, <<"c">>}, undefined]], <<"[[\"~:c\",null]]">>},
+           {[], <<"[]">>},
+           {sets:from_list([<<"foo">>, <<"bar">>, <<"baz">>]), <<"[\"~#set\", [\"foo\",\"bar\",\"baz\"]]">>}],
+  [fun() -> {Val, _} = decode(C, jsx:decode(Str), value, []) end || {Val, Str} <- Tests].
+-endif.
+
+-ifdef(maps_support).
 unmarshal_extend(C) ->
   Tests = [{[[{kw, <<"c">>}, undefined]], <<"[[\"~:c\",null]]">>},
            {[], <<"[]">>},
@@ -187,9 +240,20 @@ unmarshal_extend(C) ->
            {sets:from_list([<<"foo">>, <<"bar">>, <<"baz">>]), <<"[\"~#set\", [\"foo\",\"bar\",\"baz\"]]">>},
            {maps:from_list([{{kw, <<"foo">>}, <<"bar">>}]), <<"{\"~:foo\":\"bar\"}">>}],
   [fun() -> {Val, _} = decode(C, jsx:decode(Str), value, #{}) end || {Val, Str} <- Tests].
+-endif.
 
+-ifndef(maps_support).
+parse_string_test_() ->
+  ?_assertEqual(foo, parse_string(<<"~:foo">>, [])),
+  ?_assertEqual(<<"~foo">>, parse_string(<<"~~foo">>, [])),
+  ?_assertEqual({tag, <<"'">>}, parse_string(<<"~#'">>, [])).
+-endif.
+
+-ifdef(maps_support).
 parse_string_test_() ->
   ?_assertEqual(foo, parse_string(<<"~:foo">>, #{})),
   ?_assertEqual(<<"~foo">>, parse_string(<<"~~foo">>, #{})),
   ?_assertEqual({tag, <<"'">>}, parse_string(<<"~#'">>, #{})).
+-endif.
+
 -endif.

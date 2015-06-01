@@ -156,6 +156,26 @@ marshals_tagged(Env) ->
             Res = jsx:encode(Raw)
    end || {Res, Rep} <- Tests].
 
+-ifndef(maps_support).
+marshals_extend(_Env) ->
+  A = {kw, <<"a">>},
+  Tests = [{<<"[]">>, []},
+           {<<"[\"^ \"]">>, [{}]},
+           %{<<"[\"\"]">>, [""]},
+           {<<"[\"\"]">>, [<<"">>]},
+           {<<"[\"a\",2,\"~:a\"]">>, [<<"a">>, 2, A]},
+           {<<"[\"~:atom-1\"]">>, [{kw, <<"atom-1">>}]},
+           {<<"[\"~~hello\"]">>, [<<"~hello">>]},
+           {<<"[\"~rhttp://google.com\"]">>, [transit_types:uri("http://google.com")]},
+           {<<"[\"~u531a379e-31bb-4ce1-8690-158dceb64be6\"]">>, [transit_types:uuid("531a379e-31bb-4ce1-8690-158dceb64be6")]},
+           {<<"[\"~#'\",\"~m0\"]">>, transit_types:datetime({0,0,0})},
+           {<<"[\"~bc3VyZS4=\"]">>, [transit_types:binary(<<"sure.">>)]},
+           {<<"[\"~#set\",[\"baz\",\"foo\",\"bar\"]]">>, sets:from_list([<<"foo">>, <<"bar">>, <<"baz">>])}
+          ],
+  [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json, ?MODULE})) end || {Res, Rep} <- Tests].
+-endif.
+
+-ifdef(maps_support).
 marshals_extend(_Env) ->
   A = {kw, <<"a">>},
   Tests = [{<<"[]">>, []},
@@ -179,4 +199,7 @@ marshals_extend(_Env) ->
            {<<"[\"~#set\",[\"baz\",\"foo\",\"bar\"]]">>, sets:from_list([<<"foo">>, <<"bar">>, <<"baz">>])}
           ],
   [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json, ?MODULE})) end || {Res, Rep} <- Tests].
+-endif.
+
+
 -endif.
