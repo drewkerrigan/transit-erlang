@@ -8,9 +8,8 @@
 -export([emit_encoded/3, emit_array/2, emit_map/2]).
 -export([emit_cmap/2, handler/1]).
 
--spec emit_map(Rep, Env) ->
-  {Resp, Env} when Rep::term(), Resp::bitstring(), Env::transit_marshaler:env().
-emit_map(M, S1) when is_map(M) ->
+-ifdef(maps_support).
+  emit_map(M, S1) when is_map(M) ->
   {Body, S2} = maps:fold(fun (K, V, {In, NS1}) ->
                         {MK, NS2} = transit_marshaler:marshal(?MODULE, K, transit_marshaler:force_context(key, NS1)),
                         {MV, NS3} = transit_marshaler:marshal(?MODULE, V, transit_marshaler:force_context(value, NS2)),
@@ -23,11 +22,19 @@ emit_map(M, S1) when is_map(M) ->
     _ ->
       {Body, S2}
   end;
-emit_map([], Env) ->
+  emit_map(M, S) -> emit_map_(M,S).
+-endif.
+-ifndef(maps_support).
+  emit_map(M, S) -> emit_map_(M,S).
+-endif.
+
+-spec emit_map_(Rep, Env) ->
+  {Resp, Env} when Rep::term(), Resp::bitstring(), Env::transit_marshaler:env().
+emit_map_([], Env) ->
   {[], Env};
-emit_map([{}], Env) ->
+emit_map_([{}], Env) ->
   {[{}], Env};
-emit_map([{K,V}|Tail], Env) ->
+emit_map_([{K,V}|Tail], Env) ->
   {MK, NS1} = transit_marshaler:marshal(?MODULE, K, transit_marshaler:force_context(key, Env)),
   {MV, NS2} = transit_marshaler:marshal(?MODULE, V, transit_marshaler:force_context(value, NS1)),
   {MTail, NS3} = emit_map(Tail, NS2),
@@ -95,7 +102,8 @@ marshals_extention_test_() ->
    fun new_env/0,
    fun stop/1,
    [fun marshals_tagged/1,
-    fun marshals_extend/1
+    fun marshals_extend/1,
+    fun marshals_extend_maps/1
    ]}.
 
 marshals_tagged(Env) ->
@@ -106,12 +114,24 @@ marshals_tagged(Env) ->
             Res = jsx:encode(Raw)
    end || {Res, Rep} <- Tests].
 
+-ifdef(maps_support).
+marshals_extend_maps(_Env) ->
+  Tests = [{<<"{}">>, #{}},
+           {<<"{\"~d3.5\":4.1}">>, #{3.5 => 4.1}},
+           {<<"{\"a\":\"b\",\"~i3\":4}">>, #{3 => 4, <<"a">> => <<"b">>}}],
+  [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json_verbose, ?MODULE})) end || {Res, Rep} <- Tests].
+-endif.
+-ifndef(maps_support).
+marshals_extend_maps(_Env) ->
+  Tests = [{<<"{}">>, [{}]},
+           {<<"{\"~d3.5\":4.1}">>, [{3.5,4.1}]},
+           {<<"{\"a\":\"b\",\"~i3\":4}">>, [{<<"a">>,<<"b">>},{3,4}]}],
+  [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json_verbose, ?MODULE})) end || {Res, Rep} <- Tests].
+-endif.
+
 marshals_extend(_Env) ->
   Tests = [{<<"{}">>, [{}]},
-           {<<"{}">>, #{}},
            {<<"[\"a\",2,\"~:a\"]">>, [<<"a">>, 2, {kw, <<"a">>}]},
-           {<<"{\"a\":\"b\",\"~i3\":4}">>, #{3 => 4, <<"a">> => <<"b">>}},
-           {<<"{\"~#'\":\"~t1970-01-01T00:00:00.000Z\"}">>, {timepoint, {0,0,0}}},
-           {<<"{\"~d3.5\":4.1}">>, #{3.5 => 4.1}}],
+           {<<"{\"~#'\":\"~t1970-01-01T00:00:00.000Z\"}">>, {timepoint, {0,0,0}}}],
   [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json_verbose, ?MODULE})) end || {Res, Rep} <- Tests].
 -endif.

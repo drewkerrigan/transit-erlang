@@ -79,12 +79,16 @@
 -define(ListMixed, transit_types:list(?ArrayMixed)).
 -define(ListNested, transit_types:list([transit_types:list(?ArraySimple), transit_types:list(?ArrayMixed)])).
 
+-ifdef(maps_support).
 -define(MapSimple, #{{kw, <<"a">>} => 1, {kw, <<"b">>}  => 2, {kw, <<"c">>} => 3}).
 -define(MapMixed, #{{kw, <<"a">>} => 1, {kw, <<"b">>} => <<"a string"/utf8>>, {kw, <<"c">>} => true}).
 -define(MapNested, #{{kw, <<"simple">>} => ?MapSimple, {kw, <<"mixed">>}  => ?MapMixed}).
-%-define(MapSimple, [{{kw, <<"a">>},1},{{kw, <<"b">>},2},{{kw, <<"c">>},3}]).
-%-define(MapMixed, [{{kw, <<"a">>},1}, {{kw, <<"b">>}, <<"a string"/utf8>>}, {{kw, <<"c">>}, true}]).
-%-define(MapNested, [{{kw, <<"simple">>}, ?MapSimple}, {{kw, <<"mixed">>}, ?MapMixed}]).
+-endif.
+-ifndef(maps_support).
+-define(MapSimple, [{{kw, <<"a">>},1},{{kw, <<"b">>},2},{{kw, <<"c">>},3}]).
+-define(MapMixed, [{{kw, <<"a">>},1}, {{kw, <<"b">>}, <<"a string"/utf8>>}, {{kw, <<"c">>}, true}]).
+-define(MapNested, [{{kw, <<"simple">>}, ?MapSimple}, {{kw, <<"mixed">>}, ?MapMixed}]).
+-endif.
 
 -define(POWER_OF_TWO, lists:map(fun(X) -> erlang:round(math:pow(2, X)) end, lists:seq(0, 65))).
 -define(INTERESTING_INTS, lists:flatten(lists:map(fun(X) -> lists:seq(X -2, X + 2) end, ?POWER_OF_TWO))).
@@ -261,30 +265,20 @@ map_mixed_exemplar(Conf) ->
   exemplar("map_mixed", ?MapMixed, Conf).
 map_nested_exemplar(Conf) ->
   exemplar("map_nested", ?MapNested, Conf).
+
+-ifdef(maps_support).
 map_string_keys_exemplar(Conf) ->
   exemplar("map_string_keys", #{<<"first">> => 1, <<"second">> => 2, <<"third">> => 3}, Conf).
 map_numeric_keys_exemplar(Conf) ->
   exemplar("map_numeric_keys", #{1 => <<"one">>, 2 => <<"two">>}, Conf).
 map_vector_keys_exemplar(Conf) ->
   exemplar("map_vector_keys", #{[1,1] => <<"one">>, [2, 2] => <<"two">>}, Conf).
-
 map_unrecognized_vals_exemplar(Conf) ->
   exemplar("map_unrecognized_vals", #{{kw, <<"key">>} => <<"~Unrecognized">>}, Conf).
-vector_unrecognized_vals_exemplar(Conf) ->
-  exemplar("vector_unrecognized_vals", [<<"~Unrecognized">>], Conf).
-vector_1935_keywords_repeated_twice_exemplar(Conf) ->
-  exemplar("vector_1935_keywords_repeated_twice", array_of_keywords(1934, 1934*2), Conf).
-vector_1936_keywords_repeated_twice_exemplar(Conf) ->
-  exemplar("vector_1936_keywords_repeated_twice", array_of_keywords(1935, 1935*2), Conf).
-vector_1937_keywords_repeated_twice_exemplar(Conf) ->
-  exemplar("vector_1937_keywords_repeated_twice", array_of_keywords(1936, 1936*2), Conf).
-
-map_10_items_exemplar(Conf) ->
-  exemplar("map_10_items", hash_of_size(10), Conf).
 maps_two_char_sym_keys_exemplar(Conf) ->
   exemplar("maps_two_char_sym_keys", [#{{kw, <<"aa">>} => 1, {kw, <<"bb">>} => 2},
-                                     #{{kw, <<"aa">>} => 3, {kw, <<"bb">>} => 4},
-                                     #{{kw, <<"aa">>} => 5, {kw, <<"bb">>} => 6}],
+                                      #{{kw, <<"aa">>} => 3, {kw, <<"bb">>} => 4},
+                                      #{{kw, <<"aa">>} => 5, {kw, <<"bb">>} => 6}],
            Conf).
 maps_three_char_sym_keys_exemplar(Conf) ->
   exemplar("maps_three_char_sym_keys", [#{{kw, <<"aaa">>} => 1, {kw, <<"bbb">>} => 2},
@@ -311,12 +305,6 @@ maps_four_char_string_keys_exemplar(Conf) ->
                                           #{<<"aaaa">> => 3, <<"bbbb">> => 4},
                                           #{<<"aaaa">> => 5, <<"bbbb">> => 6}],
            Conf).
-maps_unrecognized_keys_exemplar(Conf) ->
-  exemplar("maps_unrecognized_keys",
-  	       [transit_types:tv(<<"abcde">>, {kw, <<"anything">>}),
-	        transit_types:tv(<<"fghij">>, {kw, <<"anything-else">>})],
-          Conf).
-
 map_nested_exemplars(Conf) ->
   lists:foreach(fun(N) ->
                     exemplar(lists:flatten(io_lib:format("map_~p_nested", [N])),
@@ -324,12 +312,6 @@ map_nested_exemplars(Conf) ->
                                {kw, <<"s">>} => hash_of_size(N)},
                              Conf)
                 end, [10, 1935, 1936, 1937]).
-
-compare([],[]) -> ok;
-compare([H|T1], [H|T2]) -> compare(T1, T2);
-compare([X|_], [Y|_]) ->
-  ct:fail({element_diff, X, Y}).
-
 exemplar(Name, Val, Config) ->
   Dir = ?config(data_dir, Config),
   lists:map(fun({Format, Ext}) ->
@@ -345,6 +327,107 @@ exemplar(Name, Val, Config) ->
                      Val = transit:read(S, #{ format => Format })
                 end
             end, [{json, ".json"}, {json_verbose, ".verbose.json"}, {msgpack, ".mp"}]).
+hash_of_size(N) ->
+  maps:from_list(lists:zip(array_of_keywords(N, N), lists:seq(0, N-1))).
+-endif.
+-ifndef(maps_support).
+map_string_keys_exemplar(Conf) ->
+  exemplar("map_string_keys", [{<<"first">>,1},{<<"second">>,2},{<<"third">>,3}], Conf).
+map_numeric_keys_exemplar(Conf) ->
+  exemplar("map_numeric_keys", [{1,<<"one">>},{2,<<"two">>}], Conf).
+map_vector_keys_exemplar(Conf) ->
+  exemplar("map_vector_keys", [{[1,1],<<"one">>},{[2, 2],<<"two">>}], Conf).
+map_unrecognized_vals_exemplar(Conf) ->
+  exemplar("map_unrecognized_vals", [{{kw, <<"key">>},<<"~Unrecognized">>}], Conf).
+maps_two_char_sym_keys_exemplar(Conf) ->
+  exemplar("maps_two_char_sym_keys", [[{{kw, <<"aa">>},1}, {{kw, <<"bb">>},2}],
+                                      [{{kw, <<"aa">>},3}, {{kw, <<"bb">>},4}],
+                                      [{{kw, <<"aa">>},5}, {{kw, <<"bb">>},6}]],
+           Conf).
+maps_three_char_sym_keys_exemplar(Conf) ->
+  exemplar("maps_three_char_sym_keys", [[{{kw, <<"aaa">>},1}, {{kw, <<"bbb">>},2}],
+                                        [{{kw, <<"aaa">>},3}, {{kw, <<"bbb">>},4}],
+                                        [{{kw, <<"aaa">>},5}, {{kw, <<"bbb">>},6}]],
+           Conf).
+maps_four_char_sym_keys_exemplar(Conf) ->
+  exemplar("maps_four_char_sym_keys", [[{{kw, <<"aaaa">>},1}, {{kw, <<"bbbb">>},2}],
+                                       [{{kw, <<"aaaa">>},3}, {{kw, <<"bbbb">>},4}],
+                                       [{{kw, <<"aaaa">>},5}, {{kw, <<"bbbb">>},6}]],
+           Conf).
+maps_two_char_string_keys_exemplar(Conf) ->
+  exemplar("maps_two_char_string_keys", [[{<<"aa">>,1}, {<<"bb">>,2}],
+                                         [{<<"aa">>,3}, {<<"bb">>,4}],
+                                         [{<<"aa">>,5}, {<<"bb">>,6}]],
+           Conf).
+maps_three_char_string_keys_exemplar(Conf) ->
+  exemplar("maps_three_char_string_keys", [[{<<"aaa">>,1}, {<<"bbb">>,2}],
+                                           [{<<"aaa">>,3}, {<<"bbb">>,4}],
+                                           [{<<"aaa">>,5}, {<<"bbb">>,6}]],
+           Conf).
+maps_four_char_string_keys_exemplar(Conf) ->
+  exemplar("maps_four_char_string_keys", [[{<<"aaaa">>,1}, {<<"bbbb">>,2}],
+                                          [{<<"aaaa">>,3}, {<<"bbbb">>,4}],
+                                          [{<<"aaaa">>,5}, {<<"bbbb">>,6}]],
+           Conf).
+map_nested_exemplars(Conf) ->
+  lists:foreach(fun(N) ->
+                    exemplar(lists:flatten(io_lib:format("map_~p_nested", [N])),
+                             [{{kw, <<"f">>},hash_of_size(N)},
+                              {{kw, <<"s">>},hash_of_size(N)}],
+                             Conf)
+                end, [10, 1935, 1936, 1937]).
+exemplar(Name, Val, Config) ->
+  Dir = ?config(data_dir, Config),
+  lists:map(fun({Format, Ext}) ->
+                File = filename:join(Dir, Name ++ Ext),
+                {ok, Data} = file:read_file(File),
+                % Test read
+                Val1 = transit:read(Data, [{ format, Format }]),
+                if Val1 =/= Val ->
+                     io:fwrite("Format: ~p~n", [Format]),
+                     compare(Val, Val1);
+                   true ->
+                     %% Test reencode
+                     S = transit:write(Val, [{ format, Format }]),
+                     Val = transit:read(S, [{ format, Format }])
+                end
+            end, [{json, ".json"}, {json_verbose, ".verbose.json"}, {msgpack, ".mp"}]).
+hash_of_size(N) ->
+  lists:zip(array_of_keywords(N, N), lists:seq(0, N-1)).
+-endif.
+
+vector_unrecognized_vals_exemplar(Conf) ->
+  exemplar("vector_unrecognized_vals", [<<"~Unrecognized">>], Conf).
+vector_1935_keywords_repeated_twice_exemplar(Conf) ->
+  exemplar("vector_1935_keywords_repeated_twice", array_of_keywords(1934, 1934*2), Conf).
+vector_1936_keywords_repeated_twice_exemplar(Conf) ->
+  exemplar("vector_1936_keywords_repeated_twice", array_of_keywords(1935, 1935*2), Conf).
+vector_1937_keywords_repeated_twice_exemplar(Conf) ->
+  exemplar("vector_1937_keywords_repeated_twice", array_of_keywords(1936, 1936*2), Conf).
+
+map_10_items_exemplar(Conf) ->
+  exemplar("map_10_items", hash_of_size(10), Conf).
+
+maps_unrecognized_keys_exemplar(Conf) ->
+  exemplar("maps_unrecognized_keys",
+  	       [transit_types:tv(<<"abcde">>, {kw, <<"anything">>}),
+	        transit_types:tv(<<"fghij">>, {kw, <<"anything-else">>})],
+          Conf).
+
+compare(Data1, Data2) ->
+  case compare_(Data1, Data2) of
+    fail -> 
+      case compare_(Data1, lists:reverse(Data2)) of
+        fail -> ct:fail({element_diff, Data1, Data2});
+        ok -> ok
+      end;
+    ok -> ok
+  end.
+
+compare_([],[]) -> ok;
+compare_([H|T1], [H|T2]) -> compare_(T1, T2);
+compare_([A|_], [B|_]) when is_list(A) -> compare(A,B);
+compare_([_|_], [_|_]) -> fail.
 
 %%% generate atoms, aka keyword
 -spec array_of_atoms(M,N) ->
@@ -363,6 +446,3 @@ array_of_atoms(M, N) ->
 
 array_of_keywords(M, N) ->
     [{kw, atom_to_binary(A, utf8)} || A <- array_of_atoms(M, N)].
-
-hash_of_size(N) ->
-  maps:from_list(lists:zip(array_of_keywords(N, N), lists:seq(0, N-1))).
