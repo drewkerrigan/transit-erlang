@@ -52,12 +52,19 @@
 -callback handler(Obj) ->
   Handler when Obj::term(), Handler::transit_write_handlers:writer_handler().
 
+-ifdef(maps_support).
 %%% flatten R17 map
 flatten_map(M) when is_map(M) ->
   maps:fold(fun(K, V, In) ->  [K, V| In] end, [], M);
-flatten_map([{}]) -> [];
-flatten_map([{K,V}|Tail]) -> [K,V|flatten_map(Tail)];
-flatten_map([]) -> [].
+flatten_map(M) -> flatten_map_(M).
+-endif.
+-ifndef(maps_support).
+flatten_map(M) -> flatten_map_(M).
+-endif.
+
+flatten_map_([{}]) -> [];
+flatten_map_([{K,V}|Tail]) -> [K,V|flatten_map(Tail)];
+flatten_map_([]) -> [].
 
 quote_string(Str) ->
   EscapeSlash = re:replace(Str, "\\\\", "\\\\"),
@@ -106,10 +113,11 @@ marshal_top_output(Mod, Object, Env, _) ->
 
 -spec marshal(module(), any(), S) -> {bitstring(), S}
     when S :: #env{}.
-marshal(Mod, Obj, #env { context = Kind } = S) ->
+marshal(Mod, Obj, #env { context = Kind } = S) ->  
   #write_handler { tag = TagFun,
                    string_rep = StringRep,
                    rep = Repr } = find_handler(Mod, Obj, S),
+
   Rep = case Kind of
           key -> StringRep(Obj);
           value -> Repr(Obj)
@@ -147,14 +155,21 @@ new_env({Format, CustomHandler}) ->
   Cache = transit_rolling_cache:empty(Format),
   Env#env{custom_handler=CustomHandler, cache=Cache}.
 
+-ifdef(maps_support).
 stringable_keys(#{} = Rep) -> 
   lists:all(fun(X) -> byte_size(transit_write_handlers:tag(X)) =:= 1 end,
             maps:keys(Rep));
-stringable_keys([{}]) -> true;
-stringable_keys([]) -> true;
-stringable_keys([{K, _}|T]) ->
+stringable_keys(Rep) -> stringable_keys_(Rep).
+-endif.
+-ifndef(maps_support).
+stringable_keys(Rep) -> stringable_keys_(Rep).
+-endif.
+
+stringable_keys_([{}]) -> true;
+stringable_keys_([]) -> true;
+stringable_keys_([{K, _}|T]) ->
   case byte_size(transit_write_handlers:tag(K)) =:= 1 of
     true -> stringable_keys(T);
     false -> false
   end;
-stringable_keys(_) -> false.
+stringable_keys_(_) -> false.

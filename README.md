@@ -17,6 +17,8 @@ rebar get-deps compile
 erl -pa ebin deps/*/ebin
 ```
 
+With Maps
+
 ```erlang
 A = transit:write(#{<<"a">> => <<"b">>, 3 => 4}, #{ format => json }).
 %% => <<"[\"^ \",\"a\",\"b\",3,4]">>
@@ -29,6 +31,24 @@ transit:write(#{<<"a">> => <<"b">>, 3 => 4}, #{ format => json_verbose }).
 
 %%% msgpack
 transit:write(#{<<"a">> => <<"b">>, 3 => 4}, #{ format => msgpack }).
+%% => <<149,162,94,32,161,97,161,98,163,126,105,51,4>>
+```
+
+Without Maps
+
+```
+B = transit:write([{<<"a">>,<<"b">>},{3,4}], [{format,json}]).
+%% => <<"[\"^ \",\"a\",\"b\",3,4]">>
+      <<"[\"^ \",\"a\",\"b\",\"~i3\",4]">>
+transit:read(B, [{format, json}]).
+%% => #{<<"a">> => <<"b">>, 3 => 4}
+
+%%% JSON Verbose mode
+transit:write([{<<"a">>,<<"b">>},{3,4}],[{format,json_verbose}]).
+%% => <<"{\"~i3\":4,\"a\":\"b\"}">>
+
+%%% msgpack
+transit:write([{<<"a">>,<<"b">>},{3,4}],[{format,msgpack}]).
 %% => <<149,162,94,32,161,97,161,98,163,126,105,51,4>>
 ```
 

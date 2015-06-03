@@ -14,7 +14,12 @@
 
 -type decode_kind() :: key | value.
 
+-ifdef(maps_support).
 -record(cache, { kv :: dict:dict(), vk :: dict:dict() }).
+-endif.
+-ifndef(maps_support).
+-record(cache, { kv :: dict(), vk :: dict() }).
+-endif.
 
 -opaque cache() :: #cache{} | nocache.
 

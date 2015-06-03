@@ -133,7 +133,8 @@ marshals_extention_test_() ->
    fun start_server/0,
    fun stop_server/1,
    [fun marshals_tagged/1,
-    fun marshals_extend/1
+    fun marshals_extend/1,
+    fun marshals_extend_maps/1
    ]}.
 
 marshals_tagged(Env) ->
@@ -156,20 +157,38 @@ marshals_tagged(Env) ->
             Res = jsx:encode(Raw)
    end || {Res, Rep} <- Tests].
 
-marshals_extend(_Env) ->
+-ifdef(maps_support).
+marshals_extend_maps(_Env) ->
   A = {kw, <<"a">>},
-  Tests = [{<<"[]">>, []},
-           {<<"[\"^ \"]">>, [{}]},
-           {<<"[\"^ \"]">>, #{}},
-           %{<<"[\"\"]">>, [""]},
-           {<<"[\"\"]">>, [<<"">>]},
-           {<<"[\"a\",2,\"~:a\"]">>, [<<"a">>, 2, A]},
+  Tests = [{<<"[\"^ \"]">>, #{}},
            {<<"[\"^ \",\"~:a\",\"~:b\",\"~i3\",4]">>, #{{kw, <<"a">>} => {kw, <<"b">>}, 3 => 4}},
            {<<"[\"^ \",\"a\",\"b\",\"~i3\",4]">>, #{<<"a">> => <<"b">>, 3 => 4}},
            {<<"[[\"^ \",\"foobar\",\"foobar\"],[\"^ \",\"^0\",\"foobar\"]]">>,
              [#{ <<"foobar">> => <<"foobar">>},#{ <<"foobar">> => <<"foobar">>}]},
            {<<"[[\"^ \",\"~:foobar\",\"foobar\"],[\"^ \",\"^0\",\"foobar\"]]">>,
-             [#{{kw, <<"foobar">>} => <<"foobar">>},#{{kw, <<"foobar">>} => <<"foobar">>}]},
+             [#{{kw, <<"foobar">>} => <<"foobar">>},#{{kw, <<"foobar">>} => <<"foobar">>}]}
+          ],
+  [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json, ?MODULE})) end || {Res, Rep} <- Tests].
+-endif.
+-ifndef(maps_support).
+marshals_extend_maps(_Env) ->
+  Tests = [{<<"[\"^ \"]">>, [{}]},
+           {<<"[\"^ \",\"~:a\",\"~:b\",\"~i3\",4]">>, [{{kw, <<"a">>},{kw, <<"b">>}},{3,4}]},
+           {<<"[\"^ \",\"a\",\"b\",\"~i3\",4]">>, [{<<"a">>,<<"b">>},{3,4}]},
+           {<<"[[\"^ \",\"foobar\",\"foobar\"],[\"^ \",\"^0\",\"foobar\"]]">>,
+             [[{ <<"foobar">>,<<"foobar">>}],[{<<"foobar">>,<<"foobar">>}]]},
+           {<<"[[\"^ \",\"~:foobar\",\"foobar\"],[\"^ \",\"^0\",\"foobar\"]]">>,
+             [[{{kw, <<"foobar">>},<<"foobar">>}],[{{kw, <<"foobar">>},<<"foobar">>}]]}
+          ],
+  [fun() -> Res = jsx:encode(transit_marshaler:marshal_top(?MODULE, Rep, {json, ?MODULE})) end || {Res, Rep} <- Tests].
+-endif.
+
+marshals_extend(_Env) ->
+  A = {kw, <<"a">>},
+  Tests = [{<<"[]">>, []},
+           {<<"[\"^ \"]">>, [{}]},
+           {<<"[\"\"]">>, [<<"">>]},
+           {<<"[\"a\",2,\"~:a\"]">>, [<<"a">>, 2, A]},
            {<<"[\"~:atom-1\"]">>, [{kw, <<"atom-1">>}]},
            {<<"[\"~~hello\"]">>, [<<"~hello">>]},
            {<<"[\"~rhttp://google.com\"]">>, [transit_types:uri("http://google.com")]},
