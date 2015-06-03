@@ -36,7 +36,7 @@ transit:write(#{<<"a">> => <<"b">>, 3 => 4}, #{ format => msgpack }).
 
 Without Maps
 
-```
+```erlang
 B = transit:write([{<<"a">>,<<"b">>},{3,4}], [{format,json}]).
 %% => <<"[\"^ \",\"a\",\"b\",3,4]">>
       <<"[\"^ \",\"a\",\"b\",\"~i3\",4]">>
