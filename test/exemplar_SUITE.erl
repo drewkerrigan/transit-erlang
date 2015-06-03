@@ -413,7 +413,8 @@ maps_unrecognized_keys_exemplar(Conf) ->
   	       [transit_types:tv(<<"abcde">>, {kw, <<"anything">>}),
 	        transit_types:tv(<<"fghij">>, {kw, <<"anything-else">>})],
           Conf).
-
+compare([{_,_}|_]=Data1, Data2) ->
+  compare_proplist(Data1, Data2);
 compare(Data1, Data2) ->
   case compare_(Data1, Data2) of
     fail -> 
@@ -428,6 +429,17 @@ compare_([],[]) -> ok;
 compare_([H|T1], [H|T2]) -> compare_(T1, T2);
 compare_([A|_], [B|_]) when is_list(A) -> compare(A,B);
 compare_([_|_], [_|_]) -> fail.
+
+compare_proplist([], _) ->
+  ok;
+compare_proplist([{K,V}|R], PL2) ->
+  case proplists:get_value(K, PL2) of
+    undefined -> fail;
+    V -> compare_proplist(R, PL2);
+    _ -> fail
+  end.
+ 
+  
 
 %%% generate atoms, aka keyword
 -spec array_of_atoms(M,N) ->
